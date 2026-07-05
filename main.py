@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 ALLOWED_ORIGIN = "https://dash-2exq4z.example.com"
-EMAIL = "iamsuyashbharat@gmail.com"
+EMAIL = "22f3001275@ds.study.iitm.ac.in"
 
 app = FastAPI(title="Stats Service")
 
