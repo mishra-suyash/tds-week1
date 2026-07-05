@@ -22,6 +22,10 @@ EMAIL = "22f3001275@ds.study.iitm.ac.in"
 APP_DIR = Path(__file__).resolve().parent
 ANALYTICS_API_KEY = "ak_rm8smrs98bj5uzhjirm0todf"
 PING_ALLOWED_ORIGIN = "https://app-jyt6qa.example.com"
+PING_EXTRA_ALLOWED_ORIGINS = {
+    "https://exam.sanand.workers.dev",
+    "https://tds.s-anand.net",
+}
 ORDER_TOTAL = 56
 ORDER_RATE_LIMIT = 16
 PING_RATE_LIMIT = 13
@@ -85,7 +89,11 @@ def is_ping_cors_allowed(origin: Optional[str]) -> bool:
     if not origin:
         return False
     extra_exam_origin = os.getenv("EXAM_PAGE_ORIGIN")
-    return origin == PING_ALLOWED_ORIGIN or (extra_exam_origin is not None and origin == extra_exam_origin)
+    return (
+        origin == PING_ALLOWED_ORIGIN
+        or origin in PING_EXTRA_ALLOWED_ORIGINS
+        or (extra_exam_origin is not None and origin == extra_exam_origin)
+    )
 
 
 def client_is_rate_limited(
@@ -148,9 +156,15 @@ async def add_required_headers_and_cors(request: Request, call_next):
     if origin:
         if request.url.path in {"/analytics", "/orders", "/extract"}:
             response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Expose-Headers"] = (
+                "Retry-After, X-Request-ID, X-Process-Time"
+            )
         elif request.url.path == "/ping" and is_ping_cors_allowed(origin):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Expose-Headers"] = (
+                "Retry-After, X-Request-ID, X-Process-Time"
+            )
         elif request.url.path == "/effective-config":
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
