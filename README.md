@@ -4,6 +4,8 @@ FastAPI service for `GET /stats?values=1,2,3`.
 
 It also exposes `POST /verify` for RS256 JWT verification.
 
+It also exposes `GET /effective-config` for layered configuration merging.
+
 ## Local setup
 
 ```bash
@@ -32,6 +34,24 @@ Submit the deployed endpoint with the full path:
 
 ```text
 https://your-app.example.com/verify
+```
+
+Check effective config:
+
+```bash
+curl "http://127.0.0.1:8000/effective-config?set=port=9000&set=debug=true"
+```
+
+The deployed service must have this OS-level environment variable:
+
+```text
+APP_PORT=8392
+```
+
+Submit the deployed endpoint with the full path:
+
+```text
+https://your-app.example.com/effective-config
 ```
 
 ## CORS
