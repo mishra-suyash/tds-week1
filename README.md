@@ -2,6 +2,8 @@
 
 FastAPI service for `GET /stats?values=1,2,3`.
 
+It also exposes `POST /verify` for RS256 JWT verification.
+
 ## Local setup
 
 ```bash
@@ -16,6 +18,20 @@ Open:
 
 ```text
 http://127.0.0.1:8000/stats?values=1,2,3
+```
+
+Verify a JWT:
+
+```bash
+curl -X POST http://127.0.0.1:8000/verify \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<JWT string>"}'
+```
+
+Submit the deployed endpoint with the full path:
+
+```text
+https://your-app.example.com/verify
 ```
 
 ## CORS
