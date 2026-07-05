@@ -6,6 +6,10 @@ It also exposes `POST /verify` for RS256 JWT verification.
 
 It also exposes `GET /effective-config` for layered configuration merging.
 
+It also exposes `POST /analytics` for API-key-protected event aggregation.
+
+It also exposes `GET /work`, `GET /metrics`, `GET /healthz`, and `GET /logs/tail` for live instrumentation checks.
+
 ## Local setup
 
 ```bash
@@ -52,6 +56,36 @@ Submit the deployed endpoint with the full path:
 
 ```text
 https://your-app.example.com/effective-config
+```
+
+Aggregate analytics:
+
+```bash
+curl -X POST http://127.0.0.1:8000/analytics \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ak_rm8smrs98bj5uzhjirm0todf" \
+  -d '{"events":[{"user":"alice","amount":42.5,"ts":1700000000}]}'
+```
+
+Submit the deployed endpoint with the full path:
+
+```text
+https://your-app.example.com/analytics
+```
+
+Instrumentation endpoints:
+
+```text
+https://your-app.example.com/work?n=3
+https://your-app.example.com/metrics
+https://your-app.example.com/healthz
+https://your-app.example.com/logs/tail?limit=10
+```
+
+Submit the deployed service base URL:
+
+```text
+https://your-app.example.com
 ```
 
 ## CORS

@@ -1,19 +1,26 @@
+import json
 import os
 import time
+from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 import jwt
 import yaml
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 
 ALLOWED_ORIGIN = "https://dash-2exq4z.example.com"
 EMAIL = "22f3001275@ds.study.iitm.ac.in"
 APP_DIR = Path(__file__).resolve().parent
+ANALYTICS_API_KEY = "ak_rm8smrs98bj5uzhjirm0todf"
+START_TIME = time.perf_counter()
+REQUEST_COUNT = 0
+REQUEST_LOGS = deque(maxlen=500)
 JWT_ISSUER = "https://idp.exam.local"
 JWT_AUDIENCE = "tds-hwemr39o.apps.exam.local"
 JWT_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
@@ -33,13 +40,27 @@ class VerifyRequest(BaseModel):
     token: str
 
 
+class AnalyticsEvent(BaseModel):
+    user: str
+    amount: float
+    ts: int
+
+
+class AnalyticsRequest(BaseModel):
+    events: List[AnalyticsEvent]
+
+
 @app.middleware("http")
 async def add_required_headers_and_cors(request: Request, call_next):
+    global REQUEST_COUNT
+
     start_time = time.perf_counter()
+    request_id = str(uuid4())
     origin = request.headers.get("origin")
+    REQUEST_COUNT += 1
 
     if request.method == "OPTIONS":
-        if request.url.path == "/effective-config" and origin:
+        if request.url.path in {"/analytics", "/effective-config"} and origin:
             response = JSONResponse(status_code=200, content={})
         elif request.url.path in {"/stats", "/verify"} and origin == ALLOWED_ORIGIN:
             response = JSONResponse(status_code=200, content={})
@@ -49,7 +70,9 @@ async def add_required_headers_and_cors(request: Request, call_next):
         response = await call_next(request)
 
     if origin:
-        if request.url.path == "/effective-config":
+        if request.url.path == "/analytics":
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        elif request.url.path == "/effective-config":
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
         elif request.url.path in {"/stats", "/verify"} and origin == ALLOWED_ORIGIN:
@@ -64,7 +87,18 @@ async def add_required_headers_and_cors(request: Request, call_next):
         response.headers["Access-Control-Max-Age"] = "600"
 
     process_time = time.perf_counter() - start_time
-    response.headers["X-Request-ID"] = str(uuid4())
+    log_entry = {
+        "level": "info",
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "path": request.url.path,
+        "request_id": request_id,
+        "method": request.method,
+        "status_code": response.status_code,
+        "process_time_s": round(process_time, 6),
+    }
+    REQUEST_LOGS.append(log_entry)
+    print(json.dumps(log_entry), flush=True)
+    response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time"] = f"{process_time:.6f}"
     return response
 
@@ -204,6 +238,61 @@ async def effective_config(set_values: List[str] = Query(default=[], alias="set"
         return build_effective_config(set_values)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/analytics")
+async def analytics(
+    payload: AnalyticsRequest,
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+):
+    if x_api_key != ANALYTICS_API_KEY:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    positive_totals = {}
+    revenue = 0.0
+    users = set()
+
+    for event in payload.events:
+        users.add(event.user)
+        if event.amount > 0:
+            revenue += event.amount
+            positive_totals[event.user] = positive_totals.get(event.user, 0.0) + event.amount
+
+    top_user = max(positive_totals, key=positive_totals.get) if positive_totals else None
+    return {
+        "email": EMAIL,
+        "total_events": len(payload.events),
+        "unique_users": len(users),
+        "revenue": revenue,
+        "top_user": top_user,
+    }
+
+
+@app.get("/work")
+async def work(n: int = Query(..., ge=0)):
+    for _ in range(n):
+        pass
+    return {"email": EMAIL, "done": n}
+
+
+@app.get("/metrics")
+async def metrics():
+    body = (
+        "# HELP http_requests_total Total HTTP requests handled by this service.\n"
+        "# TYPE http_requests_total counter\n"
+        f"http_requests_total {REQUEST_COUNT}\n"
+    )
+    return PlainTextResponse(content=body, media_type="text/plain; version=0.0.4")
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok", "uptime_s": time.perf_counter() - START_TIME}
+
+
+@app.get("/logs/tail")
+async def logs_tail(limit: int = Query(20, ge=1, le=500)):
+    return list(REQUEST_LOGS)[-limit:]
 
 
 @app.get("/")
