@@ -10,6 +10,12 @@ It also exposes `POST /analytics` for API-key-protected event aggregation.
 
 It also exposes `GET /work`, `GET /metrics`, `GET /healthz`, and `GET /logs/tail` for live instrumentation checks.
 
+It also exposes `POST /extract` for structured invoice extraction.
+
+It also exposes `POST /orders` and `GET /orders` for idempotent order creation, cursor pagination, and per-client rate limiting.
+
+It also exposes `GET /ping` for request-context, scoped CORS, and per-client rate-limit middleware checks.
+
 ## Local setup
 
 ```bash
@@ -85,6 +91,44 @@ https://your-app.example.com/logs/tail?limit=10
 Submit the deployed service base URL:
 
 ```text
+https://your-app.example.com
+```
+
+Extract invoice fields:
+
+```bash
+curl -X POST http://127.0.0.1:8000/extract \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Vendor: Acme-123 Industries Ltd. Total Due: USD 123.45 Payment due date: 2026-08-17"}'
+```
+
+Orders API:
+
+```bash
+curl -X POST http://127.0.0.1:8000/orders \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-key" \
+  -H "X-Client-Id: demo-client" \
+  -d '{"item":"book","quantity":1}'
+
+curl "http://127.0.0.1:8000/orders?limit=10" \
+  -H "X-Client-Id: demo-client"
+```
+
+Ping middleware check:
+
+```bash
+curl "http://127.0.0.1:8000/ping" \
+  -H "X-Request-ID: demo-request-id" \
+  -H "X-Client-Id: demo-client" \
+  -H "Origin: https://app-jyt6qa.example.com"
+```
+
+Submit these deployed URLs:
+
+```text
+https://your-app.example.com/extract
+https://your-app.example.com
 https://your-app.example.com
 ```
 
